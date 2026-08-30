@@ -60,5 +60,12 @@ or `ci-go.yml@v1` (input `go-version: "1.22"`) as appropriate.
 
 ## Versioning
 
-- `@v1` — current stable baseline (lint/typecheck/test/build, config-gated).
+- `@v1.0.0` — **immutable anchor.** Points at the validated baseline (lint/typecheck/test/build, config-gated). Pin callers to this for stability.
+- `@v1` — floating bootstrap tag tracking `v1.0.0`. It moved during initial rollout debugging; it now sits at `v1.0.0` and will only advance on a deliberate, pilot-validated change. New callers should prefer `@v1.0.0`.
 - Future breaking changes ship as `@v2`, `@v3`, … so old callers keep working.
+
+### Rollout status (2026-08-30)
+
+- 15 repos: CI added via thin caller, merged, green on default branch.
+- 9 repos: already shipped their own `.github/workflows/ci.yml` — left intact, not clobbered.
+- 9 repos: CI PR opened but red — genuine repo defects (lockfile drift, removed `distutils`, `mcp` v2 break, real lint/test errors). CI is working as intended; these are owner fixes, not template bugs.
