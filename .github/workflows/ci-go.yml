@@ -45,7 +45,7 @@ jobs:
       - name: Install CGO build deps
         if: ${{ inputs.build || inputs.test }}
         shell: bash
-        run: sudo apt-get update -y && sudo apt-get install -y libpcap-dev 2>/dev/null || true
+        run: sudo apt-get update -y && sudo apt-get install -y libpcap-dev libusb-1.0-0-dev 2>/dev/null || true
 
       # Lint is advisory on first rollout: it reports, but does not paint
       # repos red. Promote to a hard gate in a future @v2 once fleets adopt gofmt.

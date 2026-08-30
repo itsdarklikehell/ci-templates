@@ -95,8 +95,15 @@ jobs:
         shell: bash
         run: |
           has() { node -e "try{const s=require('./package.json').scripts;process.stdout.write(s&&s['$1']?'true':'false')}catch(e){process.stdout.write('false')}" 2>/dev/null || echo false; }
+          # Treat the npm default stub test ('echo "Error: no test specified" && exit 1')
+          # as "no tests" so repos without a real suite aren't painted red on first rollout.
+          is_stub_test() { node -e "try{const t=require('./package.json').scripts&&require('./package.json').scripts.test;process.stdout.write((t&&/no test specified/.test(t))?'true':'false')}catch(e){process.stdout.write('false')}" 2>/dev/null || echo false; }
           echo "lint=$(has lint)" >> "$GITHUB_OUTPUT"
-          echo "test=$(has test)" >> "$GITHUB_OUTPUT"
+          if [ "$(is_stub_test)" = "true" ]; then
+            echo "test=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "test=$(has test)" >> "$GITHUB_OUTPUT"
+          fi
           echo "build=$(has build)" >> "$GITHUB_OUTPUT"
 
       # NOTE: the override command is captured into OVERRIDE and run via eval so
