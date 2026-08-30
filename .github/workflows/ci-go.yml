@@ -39,6 +39,14 @@ jobs:
           go-version: ${{ inputs.go-version }}
           cache: true
 
+      # Some Go repos (e.g. bettercap) need CGO + native libs (libpcap) to
+      # build/test. Install common build deps so first-run CI isn't blocked by a
+      # missing system header rather than a real code/test failure.
+      - name: Install CGO build deps
+        if: ${{ inputs.build || inputs.test }}
+        shell: bash
+        run: sudo apt-get update -y && sudo apt-get install -y libpcap-dev 2>/dev/null || true
+
       # Lint is advisory on first rollout: it reports, but does not paint
       # repos red. Promote to a hard gate in a future @v2 once fleets adopt gofmt.
       - name: gofmt

@@ -71,7 +71,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
-          cache: ${{ steps.pm.outputs.pm == 'bun' && 'npm' || steps.pm.outputs.pm }}
           registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
@@ -81,10 +80,14 @@ jobs:
         run: |
           pm="${{ steps.pm.outputs.pm }}"
           case "$pm" in
-            npm)  npm ci ${{ inputs.install-flags }} || npm install ${{ inputs.install-flags }} ;;
-            yarn) yarn install --frozen-lockfile ${{ inputs.install-flags }} || yarn install ${{ inputs.install-flags }} ;;
-            pnpm) pnpm install --frozen-lockfile ${{ inputs.install-flags }} || pnpm install ${{ inputs.install-flags }} ;;
-            bun)  bun install ${{ inputs.install-flags }} ;;
+            npm)
+              if [ -f package-lock.json ]; then npm ci ${{ inputs.install-flags }}; else npm install ${{ inputs.install-flags }}; fi ;;
+            yarn)
+              if [ -f yarn.lock ]; then yarn install --frozen-lockfile ${{ inputs.install-flags }}; else yarn install ${{ inputs.install-flags }}; fi ;;
+            pnpm)
+              if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile ${{ inputs.install-flags }}; else pnpm install ${{ inputs.install-flags }}; fi ;;
+            bun)
+              bun install ${{ inputs.install-flags }} ;;
           esac
 
       - name: Detect npm scripts

@@ -7,6 +7,9 @@ name: Python CI (reusable)
 # via a config file (ruff.toml / [tool.ruff] / mypy.ini / [tool.mypy] / setup.cfg).
 # This keeps first-run rollout green for repos that haven't adopted those tools,
 # while enforcing them where they already exist.
+#
+# Tools are invoked via `python -m` so they resolve from site-packages regardless
+# of whether the user install dir is on PATH.
 
 on:
   workflow_call:
@@ -78,10 +81,10 @@ jobs:
       - name: Ensure uv / poetry available
         shell: bash
         run: |
-          if [ "${{ steps.mgr.outputs.mgr }}" = "uv" ] && ! command -v uv >/dev/null 2>&1; then pip install --quiet uv; fi
-          if [ "${{ steps.mgr.outputs.mgr }}" = "poetry" ] && ! command -v poetry >/dev/null 2>&1; then pip install --quiet poetry; fi
+          if [ "${{ steps.mgr.outputs.mgr }}" = "uv" ] && ! command -v uv >/dev/null 2>&1; then python -m pip install --quiet uv; fi
+          if [ "${{ steps.mgr.outputs.mgr }}" = "poetry" ] && ! command -v poetry >/dev/null 2>&1; then python -m pip install --quiet poetry; fi
 
-      - name: Install dependencies
+      - name: Install project dependencies
         shell: bash
         run: |
           mgr="${{ steps.mgr.outputs.mgr }}"
@@ -91,9 +94,8 @@ jobs:
             poetry)
               poetry install ;;
             pip)
-              if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-              if [ -f pyproject.toml ]; then pip install -e ".[dev]" 2>/dev/null || pip install -e . ; fi
-              pip install --quiet ruff mypy pytest build 2>/dev/null || true ;;
+              if [ -f requirements.txt ]; then python -m pip install -r requirements.txt; fi
+              if [ -f pyproject.toml ]; then python -m pip install -e ".[dev]" 2>/dev/null || python -m pip install -e . ; fi ;;
           esac
 
       - name: Ruff (if configured)
@@ -101,7 +103,8 @@ jobs:
         shell: bash
         run: |
           if [ -f ruff.toml ] || grep -q '\[tool.ruff' pyproject.toml 2>/dev/null || grep -q '\[ruff' setup.cfg 2>/dev/null; then
-            ruff check .
+            python -m pip install -q ruff 2>/dev/null || true
+            python -m ruff check .
           else
             echo "::notice::No ruff config detected; skipping lint."
           fi
@@ -111,7 +114,8 @@ jobs:
         shell: bash
         run: |
           if [ -f mypy.ini ] || [ -f .mypy.ini ] || grep -q '\[tool.mypy\]' pyproject.toml 2>/dev/null || grep -q '\[mypy' setup.cfg 2>/dev/null; then
-            mypy .
+            python -m pip install -q mypy 2>/dev/null || true
+            python -m mypy .
           else
             echo "::notice::No mypy config detected; skipping type-check."
           fi
@@ -121,7 +125,8 @@ jobs:
         shell: bash
         run: |
           if [ -d tests ] || ls test_*.py *_test.py 2>/dev/null | grep -q .; then
-            pytest -q
+            python -m pip install -q pytest 2>/dev/null || true
+            python -m pytest -q
           else
             echo "::notice::No tests directory / test files detected; skipping."
           fi
@@ -129,4 +134,6 @@ jobs:
       - name: Build distributions
         if: ${{ inputs.build }}
         shell: bash
-        run: python -m build
+        run: |
+          python -m pip install -q build 2>/dev/null || true
+          python -m build
