@@ -96,12 +96,17 @@ jobs:
           echo "test=$(has test)" >> "$GITHUB_OUTPUT"
           echo "build=$(has build)" >> "$GITHUB_OUTPUT"
 
+      # NOTE: the override command is captured into OVERRIDE and run via eval so
+      # the `if` body is never empty (an empty body before `elif` is a bash
+      # syntax error). When the input is empty/omitted we fall through to the
+      # auto-detected package.json script, then to a graceful skip.
       - name: Lint
         if: ${{ inputs.lint-command != 'skip' }}
         shell: bash
         run: |
-          if [ -n "${{ inputs.lint-command }}" ]; then
-            ${{ inputs.lint-command }}
+          OVERRIDE="${{ inputs.lint-command }}"
+          if [ -n "$OVERRIDE" ] && [ "$OVERRIDE" != "skip" ]; then
+            eval "$OVERRIDE"
           elif [ "${{ steps.scripts.outputs.lint }}" = "true" ]; then
             ${{ steps.pm.outputs.pm }} run lint
           else
@@ -112,8 +117,9 @@ jobs:
         if: ${{ inputs.test-command != 'skip' }}
         shell: bash
         run: |
-          if [ -n "${{ inputs.test-command }}" ]; then
-            ${{ inputs.test-command }}
+          OVERRIDE="${{ inputs.test-command }}"
+          if [ -n "$OVERRIDE" ] && [ "$OVERRIDE" != "skip" ]; then
+            eval "$OVERRIDE"
           elif [ "${{ steps.scripts.outputs.test }}" = "true" ]; then
             ${{ steps.pm.outputs.pm }} run test
           else
@@ -124,8 +130,9 @@ jobs:
         if: ${{ inputs.build-command != 'skip' }}
         shell: bash
         run: |
-          if [ -n "${{ inputs.build-command }}" ]; then
-            ${{ inputs.build-command }}
+          OVERRIDE="${{ inputs.build-command }}"
+          if [ -n "$OVERRIDE" ] && [ "$OVERRIDE" != "skip" ]; then
+            eval "$OVERRIDE"
           elif [ "${{ steps.scripts.outputs.build }}" = "true" ]; then
             ${{ steps.pm.outputs.pm }} run build
           else
