@@ -1,0 +1,132 @@
+name: Python CI (reusable)
+
+# Reusable CI for Python repositories.
+# Called via `uses: itsdarklikehell/ci-templates/.github/workflows/ci-python.yml@v1`
+#
+# Linting (ruff) and type-checking (mypy) only RUN when the repo has opted in
+# via a config file (ruff.toml / [tool.ruff] / mypy.ini / [tool.mypy] / setup.cfg).
+# This keeps first-run rollout green for repos that haven't adopted those tools,
+# while enforcing them where they already exist.
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: Python version (semver)
+        type: string
+        default: "3.12"
+      manager:
+        description: "Dependency manager: auto | pip | uv | poetry"
+        type: string
+        default: auto
+      lint:
+        description: Run ruff when a ruff config is present
+        type: boolean
+        default: true
+      typecheck:
+        description: Run mypy when a mypy config is present
+        type: boolean
+        default: true
+      test:
+        description: Run pytest when a tests directory / test files exist
+        type: boolean
+        default: true
+      build:
+        description: Build an sdist/wheel with `python -m build`
+        type: boolean
+        default: false
+      working-directory:
+        description: Subdirectory containing pyproject.toml / setup.py (blank = repo root)
+        type: string
+        default: "."
+    secrets:
+      CODECOV_TOKEN:
+        required: false
+
+jobs:
+  python-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect dependency manager
+        id: mgr
+        shell: bash
+        run: |
+          mgr="${{ inputs.manager }}"
+          if [ "$mgr" = "auto" ]; then
+            if [ -f uv.lock ]; then mgr=uv
+            elif [ -f poetry.lock ]; then mgr=poetry
+            elif [ -f pyproject.toml ] && grep -q '\[tool.poetry\]' pyproject.toml 2>/dev/null; then mgr=poetry
+            elif [ -f pyproject.toml ] || [ -f setup.py ] || [ -f setup.cfg ] || [ -f requirements.txt ]; then mgr=pip
+            else mgr=pip; fi
+          fi
+          echo "mgr=$mgr" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Ensure uv / poetry available
+        shell: bash
+        run: |
+          if [ "${{ steps.mgr.outputs.mgr }}" = "uv" ] && ! command -v uv >/dev/null 2>&1; then pip install --quiet uv; fi
+          if [ "${{ steps.mgr.outputs.mgr }}" = "poetry" ] && ! command -v poetry >/dev/null 2>&1; then pip install --quiet poetry; fi
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          mgr="${{ steps.mgr.outputs.mgr }}"
+          case "$mgr" in
+            uv)
+              uv sync --extra dev 2>/dev/null || uv sync 2>/dev/null || uv pip install -e ".[dev]" 2>/dev/null || uv pip install -e . ;;
+            poetry)
+              poetry install ;;
+            pip)
+              if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+              if [ -f pyproject.toml ]; then pip install -e ".[dev]" 2>/dev/null || pip install -e . ; fi
+              pip install --quiet ruff mypy pytest build 2>/dev/null || true ;;
+          esac
+
+      - name: Ruff (if configured)
+        if: ${{ inputs.lint }}
+        shell: bash
+        run: |
+          if [ -f ruff.toml ] || grep -q '\[tool.ruff' pyproject.toml 2>/dev/null || grep -q '\[ruff' setup.cfg 2>/dev/null; then
+            ruff check .
+          else
+            echo "::notice::No ruff config detected; skipping lint."
+          fi
+
+      - name: Mypy (if configured)
+        if: ${{ inputs.typecheck }}
+        shell: bash
+        run: |
+          if [ -f mypy.ini ] || [ -f .mypy.ini ] || grep -q '\[tool.mypy\]' pyproject.toml 2>/dev/null || grep -q '\[mypy' setup.cfg 2>/dev/null; then
+            mypy .
+          else
+            echo "::notice::No mypy config detected; skipping type-check."
+          fi
+
+      - name: Pytest (if tests exist)
+        if: ${{ inputs.test }}
+        shell: bash
+        run: |
+          if [ -d tests ] || ls test_*.py *_test.py 2>/dev/null | grep -q .; then
+            pytest -q
+          else
+            echo "::notice::No tests directory / test files detected; skipping."
+          fi
+
+      - name: Build distributions
+        if: ${{ inputs.build }}
+        shell: bash
+        run: python -m build

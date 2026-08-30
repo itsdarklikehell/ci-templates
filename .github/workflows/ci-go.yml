@@ -1,0 +1,71 @@
+name: Go CI (reusable)
+
+# Reusable CI for Go repositories.
+# Called via `uses: itsdarklikehell/ci-templates/.github/workflows/ci-go.yml@v1`
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: Go version (semver)
+        type: string
+        default: "1.22"
+      lint:
+        description: Run gofmt / go vet / golangci-lint
+        type: boolean
+        default: true
+      test:
+        description: Run `go test ./...`
+        type: boolean
+        default: true
+      build:
+        description: Run `go build ./...`
+        type: boolean
+        default: true
+
+jobs:
+  go-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: true
+
+      - name: gofmt
+        if: ${{ inputs.lint }}
+        shell: bash
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::The following files are not gofmt-ed:"; echo "$unformatted"; exit 1
+          fi
+
+      - name: go vet
+        if: ${{ inputs.lint }}
+        shell: bash
+        run: go vet ./...
+
+      - name: golangci-lint
+        if: ${{ inputs.lint }}
+        uses: golangci/golangci-lint-action@v6
+        with:
+          args: --timeout=5m
+        continue-on-error: true
+
+      - name: Test
+        if: ${{ inputs.test }}
+        shell: bash
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: Build
+        if: ${{ inputs.build }}
+        shell: bash
+        run: go build ./...

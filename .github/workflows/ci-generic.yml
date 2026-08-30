@@ -1,0 +1,62 @@
+name: Generic / Docker / Shell CI (reusable)
+
+# Fallback CI for repositories without a Node/Python/Go manifest but with a
+# Dockerfile or shell scripts worth validating.
+# Called via `uses: itsdarklikehell/ci-templates/.github/workflows/ci-generic.yml@v1`
+
+on:
+  workflow_call:
+    inputs:
+      dockerfile:
+        description: Path to Dockerfile (blank = auto-detect ./Dockerfile)
+        type: string
+        default: "Dockerfile"
+      docker-build:
+        description: Build the Docker image (does not push)
+        type: boolean
+        default: true
+      shellcheck:
+        description: Run shellcheck on *.sh files if shellcheck is available
+        type: boolean
+        default: true
+
+jobs:
+  generic-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Shellcheck
+        if: ${{ inputs.shellcheck }}
+        shell: bash
+        run: |
+          if command -v shellcheck >/dev/null 2>&1; then
+            files=$(find . -name '*.sh' -not -path './.git/*' 2>/dev/null)
+            if [ -n "$files" ]; then echo "$files" | xargs shellcheck; fi
+          else
+            echo "::notice::shellcheck not preinstalled on runner; skipping."
+          fi
+
+      - name: Hadolint
+        if: ${{ inputs.docker-build && inputs.dockerfile != '' }}
+        shell: bash
+        run: |
+          if [ -f "${{ inputs.dockerfile }}" ]; then
+            if command -v hadolint >/dev/null 2>&1; then
+              hadolint "${{ inputs.dockerfile }}" || true
+            else
+              echo "::notice::hadolint not preinstalled; skipping Dockerfile lint."
+            fi
+          fi
+
+      - name: Docker build
+        if: ${{ inputs.docker-build && inputs.dockerfile != '' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ inputs.dockerfile }}
+          push: false

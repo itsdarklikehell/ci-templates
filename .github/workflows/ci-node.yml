@@ -1,0 +1,133 @@
+name: Node / TypeScript CI (reusable)
+
+# Reusable CI for Node.js / TypeScript repositories.
+# Called via `uses: itsdarklikehell/ci-templates/.github/workflows/ci-node.yml@v1`
+# Designed to be safe on first rollout: it only runs a step when the
+# corresponding package.json script (or override) actually exists.
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node.js version or range (semver)
+        type: string
+        default: "20"
+      package-manager:
+        description: "Package manager: auto | npm | yarn | pnpm | bun"
+        type: string
+        default: auto
+      lint-command:
+        description: "Override lint command. 'skip' disables; empty = auto-detect 'lint' script"
+        type: string
+        default: ""
+      test-command:
+        description: "Override test command. 'skip' disables; empty = auto-detect 'test' script"
+        type: string
+        default: ""
+      build-command:
+        description: "Override build command. 'skip' disables; empty = auto-detect 'build' script"
+        type: string
+        default: ""
+      install-flags:
+        description: Extra flags appended to the install command
+        type: string
+        default: ""
+      working-directory:
+        description: Subdirectory containing package.json (blank = repo root)
+        type: string
+        default: "."
+    secrets:
+      NPM_TOKEN:
+        required: false
+
+jobs:
+  node-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect package manager
+        id: pm
+        shell: bash
+        run: |
+          pm="${{ inputs.package-manager }}"
+          if [ "$pm" = "auto" ]; then
+            if [ -f bun.lockb ]; then pm=bun
+            elif [ -f pnpm-lock.yaml ]; then pm=pnpm
+            elif [ -f yarn.lock ]; then pm=yarn
+            elif [ -f package-lock.json ]; then pm=npm
+            else pm=npm; fi
+          fi
+          echo "pm=$pm" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: ${{ steps.pm.outputs.pm == 'bun' && 'npm' || steps.pm.outputs.pm }}
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          pm="${{ steps.pm.outputs.pm }}"
+          case "$pm" in
+            npm)  npm ci ${{ inputs.install-flags }} || npm install ${{ inputs.install-flags }} ;;
+            yarn) yarn install --frozen-lockfile ${{ inputs.install-flags }} || yarn install ${{ inputs.install-flags }} ;;
+            pnpm) pnpm install --frozen-lockfile ${{ inputs.install-flags }} || pnpm install ${{ inputs.install-flags }} ;;
+            bun)  bun install ${{ inputs.install-flags }} ;;
+          esac
+
+      - name: Detect npm scripts
+        id: scripts
+        shell: bash
+        run: |
+          has() { node -e "try{const s=require('./package.json').scripts;process.stdout.write(s&&s['$1']?'true':'false')}catch(e){process.stdout.write('false')}" 2>/dev/null || echo false; }
+          echo "lint=$(has lint)" >> "$GITHUB_OUTPUT"
+          echo "test=$(has test)" >> "$GITHUB_OUTPUT"
+          echo "build=$(has build)" >> "$GITHUB_OUTPUT"
+
+      - name: Lint
+        if: ${{ inputs.lint-command != 'skip' }}
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.lint-command }}" ]; then
+            ${{ inputs.lint-command }}
+          elif [ "${{ steps.scripts.outputs.lint }}" = "true" ]; then
+            ${{ steps.pm.outputs.pm }} run lint
+          else
+            echo "::notice::No lint script detected; skipping."
+          fi
+
+      - name: Test
+        if: ${{ inputs.test-command != 'skip' }}
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.test-command }}" ]; then
+            ${{ inputs.test-command }}
+          elif [ "${{ steps.scripts.outputs.test }}" = "true" ]; then
+            ${{ steps.pm.outputs.pm }} run test
+          else
+            echo "::notice::No test script detected; skipping."
+          fi
+
+      - name: Build
+        if: ${{ inputs.build-command != 'skip' }}
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.build-command }}" ]; then
+            ${{ inputs.build-command }}
+          elif [ "${{ steps.scripts.outputs.build }}" = "true" ]; then
+            ${{ steps.pm.outputs.pm }} run build
+          else
+            echo "::notice::No build script detected; skipping."
+          fi
