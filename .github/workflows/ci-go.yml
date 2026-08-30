@@ -39,19 +39,23 @@ jobs:
           go-version: ${{ inputs.go-version }}
           cache: true
 
+      # Lint is advisory on first rollout: it reports, but does not paint
+      # repos red. Promote to a hard gate in a future @v2 once fleets adopt gofmt.
       - name: gofmt
         if: ${{ inputs.lint }}
+        continue-on-error: true
         shell: bash
         run: |
           unformatted=$(gofmt -l .)
           if [ -n "$unformatted" ]; then
-            echo "::error::The following files are not gofmt-ed:"; echo "$unformatted"; exit 1
+            echo "::warning::Files not gofmt-ed:"; echo "$unformatted"
           fi
 
       - name: go vet
         if: ${{ inputs.lint }}
+        continue-on-error: true
         shell: bash
-        run: go vet ./...
+        run: go vet ./... || true
 
       - name: golangci-lint
         if: ${{ inputs.lint }}
