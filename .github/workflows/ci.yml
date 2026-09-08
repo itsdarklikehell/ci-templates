@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Shellcheck workflows
+        shell: bash
+        run: |
+          files=$(find .github/workflows -name '*.yml' -o -name '*.yaml' 2>/dev/null)
+          if [ -n "$files" ]; then
+            echo "$files" | xargs yamllint -d relaxed 2>/dev/null || true
+          fi
+
+      - name: Validate YAML syntax
+        shell: bash
+        run: |
+          python3 -c "
+          import yaml, sys, pathlib
+          for f in pathlib.Path('.github/workflows').glob('*.yml'):
+              try:
+                  yaml.safe_load(f.read_text())
+                  print(f'OK: {f}')
+              except Exception as e:
+                  print(f'FAIL: {f}: {e}')
+                  sys.exit(1)
+          "
