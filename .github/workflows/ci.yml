@@ -1,45 +1,30 @@
 name: CI
-
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
   workflow_dispatch:
-
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
-
 permissions:
   contents: read
-
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Shellcheck workflows
-        shell: bash
+      - uses: actions/checkout@v4
+      - name: Verify workflow files are valid YAML
         run: |
-          files=$(find .github/workflows -name '*.yml' -o -name '*.yaml' 2>/dev/null)
-          if [ -n "$files" ]; then
-            echo "$files" | xargs yamllint -d relaxed 2>/dev/null || true
-          fi
-
-      - name: Validate YAML syntax
-        shell: bash
+          for wf in .github/workflows/*.yml; do
+            python3 -c "import yaml; yaml.safe_load(open('$wf'))" || exit 1
+            echo "✓ $wf"
+          done
+      - name: Verify caller template is valid
         run: |
           python3 -c "
-          import yaml, sys, pathlib
-          for f in pathlib.Path('.github/workflows').glob('*.yml'):
-              try:
-                  yaml.safe_load(f.read_text())
-                  print(f'OK: {f}')
-              except Exception as e:
-                  print(f'FAIL: {f}: {e}')
-                  sys.exit(1)
+          import yaml
+          with open('.github/workflows/ci.yml') as f:
+              yaml.safe_load(f)
+          print('✓ ci.yml valid')
           "
