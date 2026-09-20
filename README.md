@@ -69,3 +69,11 @@ or `ci-go.yml@v1` (input `go-version: "1.22"`) as appropriate.
 - 15 repos: CI added via thin caller, merged, green on default branch.
 - 9 repos: already shipped their own `.github/workflows/ci.yml` — left intact, not clobbered.
 - 9 repos: CI PR opened but red — genuine repo defects (lockfile drift, removed `distutils`, `mcp` v2 break, real lint/test errors). CI is working as intended; these are owner fixes, not template bugs.
+
+---
+
+## 🎥 Gource Visualization
+
+De ontwikkelhistorie van dit project in een film:
+
+<video src="https://raw.githubusercontent.com/itsdarklikehell/ci-templates/main/gource.mp4" controls width="100%"></video>
