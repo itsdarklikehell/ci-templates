@@ -14,17 +14,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Verify workflow files are valid YAML
+      - name: Validate workflow files
         run: |
           for wf in .github/workflows/*.yml; do
             python3 -c "import yaml; yaml.safe_load(open('$wf'))" || exit 1
             echo "✓ $wf"
           done
-      - name: Verify caller template is valid
+      - name: Validate caller template (ci.yml)
         run: |
           python3 -c "
           import yaml
           with open('.github/workflows/ci.yml') as f:
-              yaml.safe_load(f)
-          print('✓ ci.yml valid')
+              data = yaml.safe_load(f)
+          assert 'concurrency' in data, 'concurrency group required'
+          assert 'cancel-in-progress' in data['concurrency'], 'cancel-in-progress required'
+          print('✓ ci.yml concurrency configured')
+          "
+      - name: Verify gource workflow permissions
+        run: |
+          python3 -c "
+          import yaml
+          with open('.github/workflows/gource.yml') as f:
+              data = yaml.safe_load(f)
+          assert data['jobs']['gource']['permissions']['contents'] == 'write', 'gource needs contents:write'
+          assert data['jobs']['gource']['permissions']['actions'] == 'write', 'gource needs actions:write'
+          print('✓ gource.yml permissions correct')
           "
