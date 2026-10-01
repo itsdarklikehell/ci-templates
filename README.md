@@ -3,13 +3,11 @@
 <img src="https://img.shields.io/github/stars/itsdarklikehell/ci-templates?style=flat-square&color=blue" alt="Stars">
 <img src="https://img.shields.io/github/forks/itsdarklikehell/ci-templates?style=flat-square&color=green" alt="Forks">
 <img src="https://img.shields.io/github/license/itsdarklikehell/ci-templates?style=flat-square" alt="License">
-<img src="https://img.shields.io/github/actions/workflow/status=itsdarklikehell/ci-templates/ci.yml?branch=main&label=CI&style=flat-square" alt="CI Status">
+<img src="https://img.shields.io/github/actions/workflow/status/itsdarklikehell/ci-templates/ci.yml?branch=main&label=CI&style=flat-square" alt="CI Status">
 
 Reusable GitHub Actions CI workflows for the `itsdarklikehell` fleet.
 
-Single source of truth for lint / typecheck / test / build across all repos.
-Each repository gets a *thin* caller (`.github/workflows/ci.yml`) that `uses:`
-one of these workflows — so fleet-wide CI changes happen here, once.
+Single source of truth for lint / typecheck / test / build across all repos. Each repository gets a *thin* caller (`.github/workflows/ci.yml`) that `uses:` one of these workflows — so fleet-wide CI changes happen here, once.
 
 ## Installatie
 
