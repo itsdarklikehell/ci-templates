@@ -59,7 +59,7 @@ jobs:
 
       - name: Docker build
         if: ${{ inputs.docker-build && inputs.dockerfile != '' }}
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ${{ inputs.dockerfile }}
