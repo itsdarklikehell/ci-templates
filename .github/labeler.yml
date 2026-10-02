@@ -1,0 +1,13 @@
+# Labeler configuration
+documentation:
+  - changed-files:
+      - any-glob-to-any-file: '**/*.md'
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file: '**/package.json'
+      - any-glob-to-any-file: '**/requirements.txt'
+      - any-glob-to-any-file: '**/Pipfile'
+tests:
+  - changed-files:
+      - any-glob-to-any-file: '**/test/**'
+      - any-glob-to-any-file: '**/tests/**'
