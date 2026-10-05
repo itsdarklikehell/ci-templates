@@ -1,0 +1,73 @@
+name: Shell CI (reusable)
+
+# Reusable CI for Shell script repositories.
+# Called via `uses: itsdarklikehell/ci-templates/.github/workflows/ci-shell.yml@v1`
+#
+# Linting (shellcheck) and formatting (shfmt) are advisory on first rollout:
+# they report, but do not paint repos red for pre-existing style issues.
+# Promote to a hard gate in a future @v2 once fleets adopt shellcheck cleanly.
+
+on:
+  workflow_call:
+    inputs:
+      shellcheck:
+        description: Run shellcheck on *.sh files
+        type: boolean
+        default: true
+      shfmt:
+        description: Run shfmt format check
+        type: boolean
+        default: true
+
+jobs:
+  shell-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install shellcheck
+        if: ${{ inputs.shellcheck }}
+        shell: bash
+        run: |
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq shellcheck
+          fi
+
+      - name: Shellcheck
+        if: ${{ inputs.shellcheck }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          files=$(find . -name '*.sh' -not -path './.git/*' 2>/dev/null)
+          if [ -n "$files" ]; then
+            echo "$files" | xargs shellcheck --severity=style
+          else
+            echo "::notice::No .sh files found; skipping shellcheck."
+          fi
+
+      - name: Install shfmt
+        if: ${{ inputs.shfmt }}
+        shell: bash
+        run: |
+          if ! command -v shfmt >/dev/null 2>&1; then
+            curl -sL https://github.com/mvdan/sh/releases/download/v3.7.0/shfmt_v3.7.0_linux_amd64 -o /tmp/shfmt
+            chmod +x /tmp/shfmt
+            sudo mv /tmp/shfmt /usr/local/bin/shfmt
+          fi
+
+      - name: shfmt format check
+        if: ${{ inputs.shfmt }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          files=$(find . -name '*.sh' -not -path './.git/*' 2>/dev/null)
+          if [ -n "$files" ]; then
+            echo "$files" | xargs shfmt -d -i 2 -ci 0
+          else
+            echo "::notice::No .sh files found; skipping shfmt."
+          fi

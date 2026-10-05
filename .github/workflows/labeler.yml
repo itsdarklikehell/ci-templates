@@ -1,5 +1,9 @@
 name: Labeler
 
+# SECURITY: pull_request_target gives access to secrets. This workflow only
+# uses actions/labeler to apply labels based on file patterns — no arbitrary
+# code execution. The labeler config is in .github/labeler.yml.
+
 on:
   pull_request_target:
     types: [opened, edited, synchronize]
@@ -11,6 +15,7 @@ permissions:
 jobs:
   labeler:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/labeler@v7
         with:

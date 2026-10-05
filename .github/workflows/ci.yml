@@ -14,12 +14,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+
       - name: Validate workflow files
         run: |
           for wf in .github/workflows/*.yml; do
             python3 -c "import yaml; yaml.safe_load(open('$wf'))" || exit 1
             echo "✓ $wf"
           done
+
       - name: Validate caller template (ci.yml)
         run: |
           python3 -c "
@@ -30,6 +32,7 @@ jobs:
           assert 'cancel-in-progress' in data['concurrency'], 'cancel-in-progress required'
           print('✓ ci.yml concurrency configured')
           "
+
       - name: Verify gource workflow permissions
         run: |
           python3 -c "
@@ -40,3 +43,101 @@ jobs:
           assert data['jobs']['gource']['permissions']['actions'] == 'write', 'gource needs actions:write'
           print('✓ gource.yml permissions correct')
           "
+
+      - name: Validate reusable workflows have workflow_call
+        run: |
+          python3 -c "
+          import yaml, sys
+          reusable = ['ci-node.yml', 'ci-python.yml', 'ci-go.yml', 'ci-generic.yml', 'ci-shell.yml']
+          for wf in reusable:
+              path = f'.github/workflows/{wf}'
+              with open(path) as f:
+                  data = yaml.safe_load(f)
+              assert 'workflow_call' in data.get('on', {}), f'{wf} missing workflow_call trigger'
+              print(f'✓ {wf} has workflow_call')
+          "
+
+      - name: Validate all workflows have permissions
+        run: |
+          python3 -c "
+          import yaml, sys
+          import os
+          wf_dir = '.github/workflows'
+          for fname in sorted(os.listdir(wf_dir)):
+              if not fname.endswith('.yml'):
+                  continue
+              path = os.path.join(wf_dir, fname)
+              with open(path) as f:
+                  data = yaml.safe_load(f)
+              # Check top-level permissions
+              if 'permissions' not in data:
+                  print(f'✗ {fname} missing top-level permissions')
+                  sys.exit(1)
+              # Check job-level permissions
+              for job_name, job in data.get('jobs', {}).items():
+                  if 'permissions' not in job:
+                      print(f'✗ {fname} job {job_name} missing permissions')
+                      sys.exit(1)
+              print(f'✓ {fname} has permissions')
+          "
+
+      - name: Validate all workflows have timeout-minutes
+        run: |
+          python3 -c "
+          import yaml, sys
+          import os
+          wf_dir = '.github/workflows'
+          for fname in sorted(os.listdir(wf_dir)):
+              if not fname.endswith('.yml'):
+                  continue
+              path = os.path.join(wf_dir, fname)
+              with open(path) as f:
+                  data = yaml.safe_load(f)
+              for job_name, job in data.get('jobs', {}).items():
+                  if 'timeout-minutes' not in job:
+                      print(f'✗ {fname} job {job_name} missing timeout-minutes')
+                      sys.exit(1)
+              print(f'✓ {fname} has timeout-minutes')
+          "
+
+      - name: Validate README references all workflows
+        run: |
+          python3 -c "
+          import os, sys
+          with open('README.md') as f:
+              readme = f.read()
+          wf_dir = '.github/workflows'
+          for fname in sorted(os.listdir(wf_dir)):
+              if not fname.endswith('.yml'):
+                  continue
+              if fname not in readme:
+                  print(f'✗ {fname} not referenced in README')
+                  sys.exit(1)
+              print(f'✓ {fname} referenced in README')
+          "
+
+      - name: Validate no pull_request_target without permissions
+        run: |
+          python3 -c "
+          import yaml, sys
+          import os
+          wf_dir = '.github/workflows'
+          for fname in sorted(os.listdir(wf_dir)):
+              if not fname.endswith('.yml'):
+                  continue
+              path = os.path.join(wf_dir, fname)
+              with open(path) as f:
+                  data = yaml.safe_load(f)
+              triggers = data.get('on', {})
+              if 'pull_request_target' in triggers:
+                  # Must have explicit permissions
+                  if 'permissions' not in data:
+                      print(f'✗ {fname} uses pull_request_target without permissions')
+                      sys.exit(1)
+                  print(f'✓ {fname} uses pull_request_target with permissions')
+          "
+
+      - name: Validate ci-shell.yml exists
+        run: |
+          test -f .github/workflows/ci-shell.yml || { echo "✗ ci-shell.yml missing"; exit 1; }
+          echo "✓ ci-shell.yml exists"
