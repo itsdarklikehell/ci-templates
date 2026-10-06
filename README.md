@@ -24,6 +24,8 @@ Single source of truth for lint / typecheck / test / build across all repos. Eac
 | [`ci-go.yml`](.github/workflows/ci-go.yml) | Go projects | Go |
 | [`ci-generic.yml`](.github/workflows/ci-generic.yml) | Docker / Shell / other | Any |
 | [`ci-shell.yml`](.github/workflows/ci-shell.yml) | Shell script projects | Bash, Shell |
+| [`ci-rust.yml`](.github/workflows/ci-rust.yml) | Rust projects | Rust |
+| [`ci-ruby.yml`](.github/workflows/ci-ruby.yml) | Ruby projects | Ruby |
 
 ## Quick Start
 
