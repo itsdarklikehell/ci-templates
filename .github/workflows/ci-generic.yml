@@ -28,7 +28,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       # Shellcheck is advisory on first rollout: it reports, but does not paint
       # repos red for pre-existing style issues (bad shebangs, unquoted vars).
