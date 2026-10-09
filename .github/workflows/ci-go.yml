@@ -67,7 +67,7 @@ jobs:
 
       - name: golangci-lint
         if: ${{ inputs.lint }}
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
           args: --timeout=5m
         continue-on-error: true
