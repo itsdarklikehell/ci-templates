@@ -1,0 +1,25 @@
+[Unit]
+Description=Self-hosted CI runner (instance %i)
+Documentation=https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/home/rizzo/bin/ci-runner %i
+WorkingDirectory=/home/rizzo
+Environment=CI_RUNNER_JOBS_DIR=/home/rizzo/.local/state/ci-runner/%i
+EnvironmentFile=-/home/rizzo/.config/ci-runner/%i.env
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ci-runner-%i
+LimitNOFILE=65535
+KillMode=control-group
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target
