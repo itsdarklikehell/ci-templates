@@ -16,6 +16,8 @@ jobs:
   labeler:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      pull-requests: write
     steps:
       - uses: actions/labeler@v7
         with:

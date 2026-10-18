@@ -1,0 +1,129 @@
+name: Nightly zero-warning build
+
+# Nightly CI: runs on a schedule (and on demand via workflow_dispatch) and
+# treats every lint/validation finding as a hard failure. The build must pass
+# with zero warnings — ruff, shellcheck and hadolint run without
+# continue-on-error, so any new warning fails the run.
+#
+# Intended for branch protection: require this workflow on `main` so the fleet
+# never merges a regression that weakens CI.
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  nightly-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install lint tooling
+        shell: bash
+        run: python -m pip install --quiet ruff
+
+      # Zero-warning lint: ruff fails on any finding (no continue-on-error).
+      # Repos without Python files are unaffected.
+      - name: Ruff zero-warning check
+        shell: bash
+        run: |
+          if find . -name '*.py' -not -path './.git/*' | grep -q .; then
+            ruff check . --no-cache
+          else
+            echo "::notice::No Python files found; nothing to lint."
+          fi
+
+      # Zero-warning lint: shellcheck fails on any finding.
+      # Repos without shell scripts are unaffected.
+      - name: Shellcheck zero-warning check
+        shell: bash
+        run: |
+          files=$(find . -name '*.sh' -not -path './.git/*' 2>/dev/null)
+          if [ -n "$files" ]; then
+            if ! command -v shellcheck >/dev/null 2>&1; then
+              sudo apt-get update -qq
+              sudo apt-get install -y -qq shellcheck
+            fi
+            echo "$files" | xargs shellcheck
+          else
+            echo "::notice::No shell scripts found; nothing to lint."
+          fi
+
+      # Zero-warning lint: hadolint fails on any finding.
+      # Repos without Dockerfiles are unaffected.
+      - name: Hadolint zero-warning check
+        shell: bash
+        run: |
+          files=$(find . -maxdepth 3 -name 'Dockerfile*' -not -path './.git/*' 2>/dev/null | sort)
+          if [ -n "$files" ]; then
+            for f in $files; do
+              docker run --rm -i hadolint/hadolint:latest-debian < "$f"
+            done
+          else
+            echo "::notice::No Dockerfiles found; nothing to lint."
+          fi
+
+      # Keep the workflow templates themselves well-formed: every workflow
+      # file must parse, carry top-level + job-level permissions and a
+      # timeout, and be referenced in the README.
+      - name: Validate workflow files
+        shell: bash
+        run: |
+          python3 - <<'EOF'
+          import os, sys, yaml
+
+          wf_dir = ".github/workflows"
+          readme = open("README.md").read()
+          errors = []
+
+          for fname in sorted(os.listdir(wf_dir)):
+              if not fname.endswith(".yml"):
+                  continue
+              path = os.path.join(wf_dir, fname)
+              with open(path) as f:
+                  data = yaml.safe_load(f)
+
+              if fname not in readme:
+                  errors.append(f"{fname} not referenced in README.md")
+              if "permissions" not in data:
+                  errors.append(f"{fname} missing top-level permissions")
+              for job_name, job in data.get("jobs", {}).items():
+                  if "permissions" not in job:
+                      errors.append(f"{fname} job {job_name} missing permissions")
+                  if "timeout-minutes" not in job:
+                      errors.append(f"{fname} job {job_name} missing timeout-minutes")
+
+          if errors:
+              for e in errors:
+                  print(f"✗ {e}")
+              sys.exit(1)
+          print("✓ All workflow files valid, permissioned, timed out and referenced in README")
+          EOF
+
+      # Dogfood the ci-docker reusable template: build a sandbox image and run
+      # its test inside the container. This is the "Docker sandbox build/test
+      # step" exercised on every nightly run.
+      - name: Docker sandbox self-test
+        uses: ./.github/workflows/ci-docker.yml
+        with:
+          dockerfile: sandbox/Dockerfile
+          context: sandbox
+          image: localhost/ci-templates-sandbox:nightly
+          test-command: /test.sh

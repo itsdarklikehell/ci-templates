@@ -1,0 +1,64 @@
+name: Docker sandbox build/test (reusable)
+
+# Reusable workflow: build a Docker image on the runner (sandboxed build) and
+# optionally run a test command inside the built container.
+#
+# Called via `uses: itsdarklikehell/ci-templates/.github/workflows/ci-docker.yml@v1`
+#
+# Example caller (.github/workflows/ci.yml in a consumer repo):
+#   jobs:
+#     docker-sandbox:
+#       uses: itsdarklikehell/ci-templates/.github/workflows/ci-docker.yml@v1
+#       with:
+#         dockerfile: Dockerfile
+#         test-command: /run-tests.sh
+
+on:
+  workflow_call:
+    inputs:
+      dockerfile:
+        description: Path to the Dockerfile to build
+        type: string
+        default: "Dockerfile"
+      context:
+        description: Docker build context directory
+        type: string
+        default: "."
+      image:
+        description: Name:tag for the built sandbox image
+        type: string
+        default: "${{ github.repository }}:sandbox"
+      test-command:
+        description: Command executed inside the built container (blank = build only)
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  docker-sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build sandbox image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          tags: ${{ inputs.image }}
+          push: false
+          load: true
+
+      - name: Run tests in sandbox
+        if: ${{ inputs.test-command != '' }}
+        shell: bash
+        run: docker run --rm ${{ inputs.image }} sh -c "${{ inputs.test-command }}"
