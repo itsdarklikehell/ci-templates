@@ -1,0 +1,67 @@
+name: Rust CI (reusable)
+
+# Reusable CI for Rust repositories.
+# Called via `uses: itsdarklikehell/ci-templates/.github/workflows/ci-rust.yml@v1`
+
+on:
+  workflow_call:
+    inputs:
+      rust-version:
+        description: Rust version (semver)
+        type: string
+        default: "1.75"
+      lint:
+        description: Run clippy
+        type: boolean
+        default: true
+      test:
+        description: Run `cargo test`
+        type: boolean
+        default: true
+      build:
+        description: Run `cargo build --release`
+        type: boolean
+        default: false
+      working-directory:
+        description: Subdirectory containing Cargo.toml (blank = repo root)
+        type: string
+        default: "."
+
+jobs:
+  rust-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ inputs.rust-version }}
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Clippy
+        if: ${{ inputs.lint }}
+        run: cargo clippy -- -D warnings
+
+      - name: Test
+        if: ${{ inputs.test }}
+        run: cargo test
+
+      - name: Build
+        if: ${{ inputs.build }}
+        run: cargo build --release

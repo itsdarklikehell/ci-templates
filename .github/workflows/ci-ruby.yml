@@ -1,0 +1,51 @@
+name: Ruby CI (reusable)
+
+# Reusable CI for Ruby repositories.
+# Called via `uses: itsdarklikehell/ci-templates/.github/workflows/ci-ruby.yml@v1`
+
+on:
+  workflow_call:
+    inputs:
+      ruby-version:
+        description: Ruby version (semver)
+        type: string
+        default: "3.2"
+      lint:
+        description: Run rubocop
+        type: boolean
+        default: true
+      test:
+        description: Run `bundle exec rake test`
+        type: boolean
+        default: true
+      working-directory:
+        description: Subdirectory containing Gemfile (blank = repo root)
+        type: string
+        default: "."
+
+jobs:
+  ruby-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ inputs.ruby-version }}
+          bundler-cache: true
+
+      - name: Rubocop
+        if: ${{ inputs.lint }}
+        run: bundle exec rubocop
+
+      - name: Test
+        if: ${{ inputs.test }}
+        run: bundle exec rake test
